@@ -1,0 +1,10 @@
+# Optional: instant updates for the Furzona live-DJ board.
+#   cp .env.example .env   (then put your token in .env)
+#   docker compose up -d --build
+#   docker compose logs -f
+services:
+  furzona-live-watcher:
+    build: .
+    container_name: furzona-live-watcher
+    restart: unless-stopped
+    env_file: .env

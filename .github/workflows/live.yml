@@ -1,0 +1,54 @@
+name: Furzona live DJ feed
+# Watches AzuraCast's public now-playing API and publishes who's live + their art to GitHub Pages
+# for the VRChat world. Nothing on the radio server is changed. Free on a public repo.
+on:
+  schedule:
+    - cron: "*/5 * * * *"      # GitHub runs this roughly every 5 minutes (it can be late when GitHub is busy)
+  workflow_dispatch:             # "Run workflow" button, and the optional Docker watcher (docker/) for instant updates
+    inputs:
+      quick:
+        description: "Just check once and publish (used by the Docker watcher)"
+        type: boolean
+        default: false
+  push:
+    branches: [main]             # publishing a change to this repo also refreshes the feed
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: furzona-live-${{ github.event_name }}   # a quick run from the watcher doesn't wait behind a 4.5-minute scheduled watch
+  cancel-in-progress: false
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+    env:
+      NOWPLAYING_URL: ${{ vars.NOWPLAYING_URL || 'https://furzona.radio/api/nowplaying/clubradio' }}
+      PAGES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - run: pip install pillow
+      - name: Watch for ~4.5 minutes (checks every 20 s, stops early when something changes)
+        id: watch
+        run: |
+          set +e
+          if [ "${{ inputs.quick }}" = "true" ] || [ "${{ github.event_name }}" = "push" ]; then python live.py --once; else python live.py --loop 270 --every 20; fi
+          code=$?
+          if [ $code -eq 10 ]; then echo "changed=true" >> $GITHUB_OUTPUT; elif [ $code -ne 0 ]; then exit $code; fi
+          # keep the other art slots that are already live, so nothing 404s mid-change
+          if [ $code -eq 10 ]; then
+            for i in 0 1 2 3 4 5 6 7; do
+              [ -f site/art-$i.jpg ] || curl -fsSL "${PAGES_URL}art-$i.jpg" -o site/art-$i.jpg || rm -f site/art-$i.jpg
+            done
+          fi
+      - if: steps.watch.outputs.changed == 'true'
+        uses: actions/configure-pages@v5
+      - if: steps.watch.outputs.changed == 'true'
+        uses: actions/upload-pages-artifact@v3
+        with: { path: site }
+      - if: steps.watch.outputs.changed == 'true'
+        uses: actions/deploy-pages@v4

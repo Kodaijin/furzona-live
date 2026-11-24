@@ -15,10 +15,10 @@ art-<slot>.jpg   the DJ's art, 512x512 (slot rotates 0-7 so VRChat never shows a
 ## Supporter wall
 
 `supporters.json` lists active, paying Patreon supporters grouped by their highest tier (highest first, names A-Z),
-plus the special thanks. Rebuilt every 6 hours, whenever anything in this repo is saved, or on demand
+Rebuilt every 6 hours, whenever anything in this repo is saved, or on demand
 (**Actions → Furzona live DJ feed → Run workflow → tick "Rebuild the supporter wall list"**).
 
-- **Special thanks:** edit `special-thanks.txt` right here on GitHub (pencil icon → Commit). One per line: `Name | note`.
+- **Special thanks:** typed in Unity on the wall's "Special Thanks" text object (not from this repo).
 - **Leave someone off:** add their exact Patreon name to `hidden.txt`.
 - **Patreon token:** the `PATREON_TOKEN` secret (a Creator's Access Token). If it expires the run shows a red ✗ and
   the wall keeps the last good list; make a new token and update the secret.

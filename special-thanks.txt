@@ -1,3 +1,2 @@
-# Special thanks on the supporter wall. One per line:   Name | optional note
-# Save (commit) this file on GitHub and the wall updates within a few minutes.
-Lain | Truss logo frame V2
+# Not used by the wall any more (2026-11-23): the special thanks are typed straight onto the
+# "Special Thanks" text object on the Supporter Wall in Unity. Kept only so supporters.py still runs.

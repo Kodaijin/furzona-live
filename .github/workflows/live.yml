@@ -74,9 +74,17 @@ jobs:
       - if: steps.watch.outputs.changed == 'true' || steps.sup.outputs.changed == 'true'
         uses: actions/configure-pages@v5
       - if: steps.watch.outputs.changed == 'true' || steps.sup.outputs.changed == 'true'
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with: { path: site }
-      - if: steps.watch.outputs.changed == 'true' || steps.sup.outputs.changed == 'true'
+      # GitHub sometimes can't find the just-uploaded site for a few seconds ("No artifacts named github-pages"):
+      # try the deploy, and if that happens, wait and try once more. Anything still missed is republished next run.
+      - id: deploy1
+        if: steps.watch.outputs.changed == 'true' || steps.sup.outputs.changed == 'true'
+        continue-on-error: true
+        uses: actions/deploy-pages@v4
+      - if: steps.deploy1.outcome == 'failure'
+        run: sleep 30
+      - if: steps.deploy1.outcome == 'failure'
         uses: actions/deploy-pages@v4
 
       - name: Flag a broken Patreon update (after publishing the live feed)

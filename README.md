@@ -1,4 +1,4 @@
-# Furzona live-DJ feed
+# Furzona world feeds
 
 Feeds the **Live DJ board** in the VRChat world *Aftermath REDUX*: who's live on Furzona Radio, their streamer art,
 and the track they're sending. Nothing on the AzuraCast server is changed — it only reads the station's public
@@ -11,6 +11,17 @@ VRChat's trusted list: every player sees the board without turning on "Allow Unt
 live.json        {"v":1,"live":true,"dj":"DJ Name","song":"Artist - Title","slot":3,"art":true,...}
 art-<slot>.jpg   the DJ's art, 512x512 (slot rotates 0-7 so VRChat never shows a stale cached picture)
 ```
+
+## Supporter wall
+
+`supporters.json` lists active, paying Patreon supporters grouped by their highest tier (highest first, names A-Z),
+plus the special thanks. Rebuilt every 6 hours, whenever anything in this repo is saved, or on demand
+(**Actions → Furzona live DJ feed → Run workflow → tick "Rebuild the supporter wall list"**).
+
+- **Special thanks:** edit `special-thanks.txt` right here on GitHub (pencil icon → Commit). One per line: `Name | note`.
+- **Leave someone off:** add their exact Patreon name to `hidden.txt`.
+- **Patreon token:** the `PATREON_TOKEN` secret (a Creator's Access Token). If it expires the run shows a red ✗ and
+  the wall keeps the last good list; make a new token and update the secret.
 
 ## How it updates
 

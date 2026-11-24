@@ -1,54 +1,84 @@
 name: Furzona live DJ feed
-# Watches AzuraCast's public now-playing API and publishes who's live + their art to GitHub Pages
-# for the VRChat world. Nothing on the radio server is changed. Free on a public repo.
+# Publishes the VRChat world's feeds to GitHub Pages (*.github.io is on VRChat's trusted list):
+#   live.json + art-<slot>.jpg   who's live on Furzona Radio (AzuraCast's public now-playing API)
+#   supporters.json              Patreon supporters + special thanks for the supporter wall (refreshed every 6 h)
+# Nothing on the radio server is changed. Free on a public repo.
 on:
   schedule:
     - cron: "*/5 * * * *"      # GitHub runs this roughly every 5 minutes (it can be late when GitHub is busy)
-  workflow_dispatch:             # "Run workflow" button, and the optional Docker watcher (docker/) for instant updates
+  workflow_dispatch:             # "Run workflow" button, and the optional Docker watcher (docker/)
     inputs:
       quick:
-        description: "Just check once and publish (used by the Docker watcher)"
+        description: "Just check the radio once and publish (used by the Docker watcher)"
+        type: boolean
+        default: false
+      supporters:
+        description: "Rebuild the supporter wall list from Patreon now"
         type: boolean
         default: false
   push:
-    branches: [main]             # publishing a change to this repo also refreshes the feed
+    branches: [main]             # editing special-thanks.txt / hidden.txt (or anything) republishes right away
 permissions:
   contents: read
   pages: write
   id-token: write
 concurrency:
-  group: furzona-live-${{ github.event_name }}   # a quick run from the watcher doesn't wait behind a 4.5-minute scheduled watch
+  group: furzona-live-${{ github.event_name }}
   cancel-in-progress: false
 jobs:
-  watch:
+  publish:
     runs-on: ubuntu-latest
     environment:
       name: github-pages
     env:
       NOWPLAYING_URL: ${{ vars.NOWPLAYING_URL || 'https://furzona.radio/api/nowplaying/clubradio' }}
       PAGES_URL: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
+      PATREON_TOKEN: ${{ secrets.PATREON_TOKEN }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with: { python-version: "3.12" }
       - run: pip install pillow
-      - name: Watch for ~4.5 minutes (checks every 20 s, stops early when something changes)
+
+      - name: Supporter wall (Patreon) - rebuilt every 6 h, on push, or when asked
+        id: sup
+        run: |
+          set +e
+          if [ "${{ github.event_name }}" = "push" ] || [ "${{ inputs.supporters }}" = "true" ]; then python supporters.py --force; else python supporters.py; fi
+          code=$?
+          if [ $code -eq 10 ]; then echo "changed=true" >> $GITHUB_OUTPUT
+          elif [ $code -ne 0 ]; then echo "::error::Supporter wall update failed (see above). The wall keeps the last published list."; echo "failed=true" >> $GITHUB_OUTPUT; fi
+          exit 0
+
+      - name: Live DJ - watch ~4.5 min (checks every 20 s), or once when something else is publishing
         id: watch
         run: |
           set +e
-          if [ "${{ inputs.quick }}" = "true" ] || [ "${{ github.event_name }}" = "push" ]; then python live.py --once; else python live.py --loop 270 --every 20; fi
+          if [ "${{ inputs.quick }}" = "true" ] || [ "${{ github.event_name }}" = "push" ] || [ "${{ steps.sup.outputs.changed }}" = "true" ]; then
+            python live.py --once
+          else
+            python live.py --loop 270 --every 20
+          fi
           code=$?
           if [ $code -eq 10 ]; then echo "changed=true" >> $GITHUB_OUTPUT; elif [ $code -ne 0 ]; then exit $code; fi
-          # keep the other art slots that are already live, so nothing 404s mid-change
-          if [ $code -eq 10 ]; then
-            for i in 0 1 2 3 4 5 6 7; do
-              [ -f site/art-$i.jpg ] || curl -fsSL "${PAGES_URL}art-$i.jpg" -o site/art-$i.jpg || rm -f site/art-$i.jpg
-            done
-          fi
-      - if: steps.watch.outputs.changed == 'true'
+
+      - name: Keep everything that's already published (a deploy replaces the whole site)
+        if: steps.watch.outputs.changed == 'true' || steps.sup.outputs.changed == 'true'
+        run: |
+          mkdir -p site
+          for f in live.json index.html supporters.json art-0.jpg art-1.jpg art-2.jpg art-3.jpg art-4.jpg art-5.jpg art-6.jpg art-7.jpg; do
+            [ -f "site/$f" ] || curl -fsSL "${PAGES_URL}$f" -o "site/$f" || rm -f "site/$f"
+          done
+          ls -la site
+
+      - if: steps.watch.outputs.changed == 'true' || steps.sup.outputs.changed == 'true'
         uses: actions/configure-pages@v5
-      - if: steps.watch.outputs.changed == 'true'
+      - if: steps.watch.outputs.changed == 'true' || steps.sup.outputs.changed == 'true'
         uses: actions/upload-pages-artifact@v3
         with: { path: site }
-      - if: steps.watch.outputs.changed == 'true'
+      - if: steps.watch.outputs.changed == 'true' || steps.sup.outputs.changed == 'true'
         uses: actions/deploy-pages@v4
+
+      - name: Flag a broken Patreon update (after publishing the live feed)
+        if: steps.sup.outputs.failed == 'true'
+        run: exit 1

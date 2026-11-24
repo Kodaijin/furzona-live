@@ -1,0 +1,3 @@
+# Special thanks on the supporter wall. One per line:   Name | optional note
+# Save (commit) this file on GitHub and the wall updates within a few minutes.
+Lain | Truss logo frame V2

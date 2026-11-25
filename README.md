@@ -9,7 +9,7 @@ VRChat's trusted list: every player sees the board without turning on "Allow Unt
 
 ```
 live.json        {"v":1,"live":true,"dj":"DJ Name","song":"Artist - Title","slot":3,"art":true,...}
-art-<slot>.jpg   the DJ's art, 512x512 (slot rotates 0-7 so VRChat never shows a stale cached picture)
+art-<slot>.png   the DJ's art, 512x512, transparency kept (slot rotates 0-7 so VRChat never shows a stale cached picture); a .jpg copy is kept for older world versions
 ```
 
 ## Supporter wall

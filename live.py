@@ -5,7 +5,7 @@ Furzona live-DJ feed for the VRChat world (no changes to the AzuraCast server).
 Reads AzuraCast's public now-playing API, and when a DJ goes live / changes / goes off air, writes a tiny site:
   site/live.json      {"v":1,"live":true,"dj":"Name","song":"Artist - Title","slot":3,"art":true,"since":"...","updated":"..."}
                       ("song" = the track the live DJ is sending as metadata; empty when AutoDJ is playing)
-  site/art-<slot>.jpg the DJ's streamer art, 512x512 (slot rotates 0..7 so the world never sees a stale cached image)
+  site/art-<slot>.png the DJ's streamer art, 512x512, transparency kept (+ a .jpg copy for older world versions) (slot rotates 0..7 so the world never sees a stale cached image)
 The workflow publishes that folder to GitHub Pages (*.github.io is on VRChat's trusted list for string + image loading).
 
 Usage:  python live.py --once            (one check)
@@ -55,16 +55,30 @@ def fetch_state():
         song = (artist + " - " + title) if artist and title else (title or (s.get("text") or "").strip())
     return is_live, dj, art, (live.get("broadcast_start") if is_live else None), song[:120]
 
-def make_art(url, path):
+BOARD_BG = (9, 10, 15)   # the board's panel colour: what transparent art sits on in the .jpg copy
+
+def make_art(url, base):
+    """Writes <base>.png (keeps transparency) and <base>.jpg (flattened on the board colour, for older world versions).
+    Transparent art (logos) is fitted inside the square with see-through padding; solid art is centre-cropped to fill it."""
     from PIL import Image
-    im = Image.open(io.BytesIO(get(url))).convert("RGB")
-    w, h = im.size; s = min(w, h)
-    im = im.crop(((w - s) // 2, (h - s) // 2, (w - s) // 2 + s, (h - s) // 2 + s)).resize((512, 512), Image.LANCZOS)
-    im.save(path, "JPEG", quality=88)
+    im = Image.open(io.BytesIO(get(url)))
+    has_alpha = im.mode in ("RGBA", "LA", "PA") or (im.mode == "P" and "transparency" in im.info)
+    im = im.convert("RGBA")
+    if has_alpha and im.getextrema()[3][0] < 255:
+        im.thumbnail((512, 512), Image.LANCZOS)                   # fit, keep the whole logo
+        sq = Image.new("RGBA", (512, 512), (0, 0, 0, 0))
+        sq.paste(im, ((512 - im.width) // 2, (512 - im.height) // 2), im)
+        im = sq
+    else:
+        w, h = im.size; s = min(w, h)
+        im = im.crop(((w - s) // 2, (h - s) // 2, (w - s) // 2 + s, (h - s) // 2 + s)).resize((512, 512), Image.LANCZOS)
+    im.save(base + ".png", "PNG", optimize=True)
+    flat = Image.new("RGB", im.size, BOARD_BG); flat.paste(im, (0, 0), im)
+    flat.save(base + ".jpg", "JPEG", quality=88)
 
 def step(prev):
     is_live, dj, art, since, song = fetch_state()
-    art_key = f"{is_live}|{dj}|{art}"
+    art_key = f"png2|{is_live}|{dj}|{art}"   # png2: art is now also written as .png with transparency (bumping this re-makes it)
     key = art_key + "|" + song           # a new track only updates the text; the art is only re-made when the DJ / art changes
     if key == prev.get("key"):
         return prev, False
@@ -76,7 +90,7 @@ def step(prev):
     elif is_live and art:
         slot = (slot + 1) % SLOTS if slot >= 0 else 0
         try:
-            make_art(art, os.path.join(SITE, f"art-{slot}.jpg")); has_art = True
+            make_art(art, os.path.join(SITE, f"art-{slot}")); has_art = True
         except Exception as e:
             print("art download failed:", e, file=sys.stderr)
     state = {"v": 1, "live": is_live, "dj": dj, "song": song, "slot": slot, "art": has_art,
